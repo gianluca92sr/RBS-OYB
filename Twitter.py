@@ -1,29 +1,16 @@
+import re
 import matplotlib.pyplot as plt
+import nest_asyncio
+import nltk
+import pandas as pd
+import seaborn as sns
+import twint
 from bs4 import BeautifulSoup
 from nltk import WordPunctTokenizer
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+nltk.download('wordnet')
 from wordcloud import WordCloud, STOPWORDS
-import nest_asyncio
-import twint
-import pandas as pd
-import re
-import nltk;
-from PIL import Image
-
-nltk.download('stopwords')
-from pprint import pprint
-import numpy as np
-# Gensim
-import gensim
-import gensim.corpora as corpora
-from gensim.utils import simple_preprocess
-from gensim.models import CoherenceModel
-# spacy for lemmatization
-import spacy
-# Plotting tools
-import pyLDAvis
-import matplotlib.pyplot as plt
-from datetime import time
-
 nest_asyncio.apply()
 
 # DATA COLLECTION AND EXPLORATION
@@ -48,7 +35,7 @@ def agrifoodsearch():
         c.Min_likes = 5
         c.Store_object_tweets_list = tweetsFull
         c.Since = "2021-01-01 00:00:00"
-        c.Limit = 20  # 20 default value, 3200 max value
+        c.Limit = 3200  # 20 default value, 3200 max value
         c.Lang = "en"
         twint.run.Search(c)
 
@@ -59,10 +46,15 @@ agrifoodsearch()
 token = WordPunctTokenizer()
 
 
-# Remove any special characters and http link, finally convert all in lowercase
+# Remove any special characters, link/url, hashtag, words less than 2 letters, convert all in lowercase
+# lemmatization, remove stopwords
+stop_words = set(stopwords.words('english'))
+stop_words.update(["blockchain", "eth", "bnb", "btc", "food", "int", "one", "xdc"])
+lemmatizer = WordNetLemmatizer()
+
 def cleaning_tweets(t):
     pattern_mentions = '@[A-Za-z0–9_]+'
-    pattern_hashtag = '#(\w+)'
+    pattern_hashtag = '#(\\w+)'
     link_specialchar = [
         r'(https?://)?(www\.)?(\w+\.)?(\w+)(\.\w+)(/.+)?',
         '[^A-Za-z0-9]+'
@@ -75,13 +67,29 @@ def cleaning_tweets(t):
     text_tweet_no_link_spec_char = re.sub(pattern_link_special_char, ' ', text_tweet_no_hashtag)
     lower_case = text_tweet_no_link_spec_char.lower()
     words = token.tokenize(lower_case)
-    result_words = [x for x in words if len(x) > 2]
-    return (" ".join(result_words)).strip()
+    lemmas = []
+    for word in words:
+        lemmas.append(lemmatizer.lemmatize(word))
+    result_lemmas = [x for x in lemmas if len(x) > 2]
+    result_after_stopwords = []
+    for final in result_lemmas:
+        if final not in stop_words:
+            result_after_stopwords.append(final)
+    return (" ".join(result_after_stopwords)).strip()
 
-
+# Take only hashtags, remove words less than 2 letters, convert all in lowercase, lemmatization, remove stopwords
 def get_hashtag(t):
     lower_case = t.lower()
-    return re.findall('#(\w+)', lower_case)
+    hashtags = re.findall('#(\\w+)', lower_case)
+    lemmas = []
+    for hashtag in hashtags:
+        lemmas.append(lemmatizer.lemmatize(hashtag))
+    result_lemmas = [x for x in lemmas if len(x) > 2]
+    result_after_stopwords = []
+    for final in result_lemmas:
+        if final not in stop_words:
+            result_after_stopwords.append(final)
+    return result_after_stopwords
 
 
 tweets_text = []
@@ -105,50 +113,43 @@ df = pd.DataFrame(list(
         (pd.to_datetime(tweets_time, format='%H:%M:%S')).time)),
     columns=['Tweet', 'Replies_Count', 'Retweets_Count', 'Likes_Count', 'Timestamp'])
 
+df_hashtag = pd.DataFrame(tweets_hashtag)
+
+hashtag_chart_values = df_hashtag[0].value_counts()
+
 tweetsString = pd.Series(df.Tweet.values).str.cat(sep=' ')
-stopwords = set(STOPWORDS)
-stopwords.update(["blockchain", "eth", "bnb", "btc", "food", "int", "one", "xdc"])
-wordcloud = WordCloud(width=1600, stopwords=stopwords, height=800, max_font_size=200, max_words=50, collocations=False,
+wordcloud = WordCloud(width=1600, height=800, max_font_size=200, max_words=50, collocations=False,
                       background_color='white').generate(tweetsString)
 
-wordcloud_hash = WordCloud(width=1600, stopwords=stopwords, height=800, max_font_size=200, max_words=50,
+wordcloud_hash = WordCloud(width=1600, height=800, max_font_size=200, max_words=50,
                            collocations=False,
-                           background_color='black').generate(" ".join(tweets_hashtag).strip())
+                           background_color='white').generate(" ".join(tweets_hashtag).strip())
 
-plt.figure(figsize=(40, 30))
+plt.figure(figsize=(10, 5))
 plt.imshow(wordcloud, interpolation='bilinear')
 plt.axis("off")
+plt.title('WordCloud Noun Agrifood')
 plt.show()
 
-plt.figure(figsize=(40, 30))
+plt.figure(figsize=(10, 5))
 plt.imshow(wordcloud_hash, interpolation='bilinear')
 plt.axis("off")
+plt.title('WordCloud Hashtag Agrifood')
+plt.show()
+
+# TODO fix
+# plt.figure(figsize=(10, 5))
+# sns.barplot(df[0].value_counts()[:20].values, hashtag_chart_values[:20].index, alpha=0.8)
+# plt.title('Top 20 Hashtag Agrifood')
+# plt.ylabel('Top 20 Noun from Tweet', fontsize=12)
+# plt.xlabel('Count of Noun', fontsize=12)
+# plt.show()
+
+plt.figure(figsize=(10, 5))
+sns.barplot(hashtag_chart_values[:20].values, hashtag_chart_values[:20].index, alpha=0.8)
+plt.title('Top 20 Hashtag Agrifood')
+plt.ylabel('Hashtag from Tweet', fontsize=12)
+plt.xlabel('Count of Hashtag', fontsize=12)
 plt.show()
 
 # df.to_excel("C:\\Users\\gianl\\Downloads\\Twitter.xlsx")
-
-# # NLTK Stop words
-# from nltk.corpus import stopwords
-# stop_words = stopwords.words('english')
-# stop_words.extend(['from', 'subject', 're', 'edu', 'use'])
-#
-# print(df.Tweet.unique())
-# df.head()
-
-# plt.plot(df.Tweet.values, df.Likes_Count.values)
-# plt.show()
-
-# text =  df.Tweet.values
-# wordcloud = WordCloud(
-#     width = 3000,
-#     height = 2000,
-#     background_color = 'white',
-#     stopwords = STOPWORDS).generate(str(text))
-# fig = plt.figure(
-#     figsize = (40, 30),
-#     facecolor = 'k',
-#     edgecolor = 'k')
-# plt.imshow(wordcloud, interpolation = 'bilinear')
-# plt.axis('off')
-# plt.tight_layout(pad=0)
-# plt.show()
