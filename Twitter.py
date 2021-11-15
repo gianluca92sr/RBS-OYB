@@ -35,7 +35,7 @@ def agrifoodsearch():
         c.Min_likes = 5
         c.Store_object_tweets_list = tweetsFull
         c.Since = "2021-01-01 00:00:00"
-        c.Limit = 3200  # 20 default value, 3200 max value
+        c.Limit = 20  # 20 default value, 3200 max value
         c.Lang = "en"
         twint.run.Search(c)
 
@@ -116,6 +116,14 @@ df = pd.DataFrame(list(
 df_hashtag = pd.DataFrame(tweets_hashtag)
 
 hashtag_chart_values = df_hashtag[0].value_counts()
+noun_values = []
+
+for i in range(len(df.Tweet.values)):
+    nouns = token.tokenize(df.Tweet.values[i])
+    noun_values.extend(nouns)
+
+df_noun = pd.DataFrame(noun_values)
+noun_chart_values = df_noun[0].value_counts()
 
 tweetsString = pd.Series(df.Tweet.values).str.cat(sep=' ')
 wordcloud = WordCloud(width=1600, height=800, max_font_size=200, max_words=50, collocations=False,
@@ -137,16 +145,15 @@ plt.axis("off")
 plt.title('WordCloud Hashtag Agrifood')
 plt.show()
 
-# TODO fix
-# plt.figure(figsize=(10, 5))
-# sns.barplot(df[0].value_counts()[:20].values, hashtag_chart_values[:20].index, alpha=0.8)
-# plt.title('Top 20 Hashtag Agrifood')
-# plt.ylabel('Top 20 Noun from Tweet', fontsize=12)
-# plt.xlabel('Count of Noun', fontsize=12)
-# plt.show()
+plt.figure(figsize=(10, 5))
+sns.barplot(x=noun_chart_values[:20].values, y=noun_chart_values[:20].index, alpha=0.8)
+plt.title('Top 20 Noun Agrifood')
+plt.ylabel('Top 20 Noun from Tweet', fontsize=12)
+plt.xlabel('Count of Noun', fontsize=12)
+plt.show()
 
 plt.figure(figsize=(10, 5))
-sns.barplot(hashtag_chart_values[:20].values, hashtag_chart_values[:20].index, alpha=0.8)
+sns.barplot(x=hashtag_chart_values[:20].values, y=hashtag_chart_values[:20].index, alpha=0.8)
 plt.title('Top 20 Hashtag Agrifood')
 plt.ylabel('Hashtag from Tweet', fontsize=12)
 plt.xlabel('Count of Hashtag', fontsize=12)
