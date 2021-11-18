@@ -5,12 +5,16 @@ import nltk
 import pandas as pd
 import seaborn as sns
 import twint
+import pyLDAvis.gensim_models
+import gensim
+import gensim.corpora as corpora
+from gensim.models import CoherenceModel
 from bs4 import BeautifulSoup
 from nltk import WordPunctTokenizer
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-nltk.download('wordnet')
-from wordcloud import WordCloud, STOPWORDS
+from wordcloud import WordCloud
+
 nest_asyncio.apply()
 
 # DATA COLLECTION AND EXPLORATION
@@ -19,7 +23,7 @@ nest_asyncio.apply()
 # Allow: /hashtag/*?src=
 # Allow: /search?q=%23
 # Allow: /i/api/
-search_terms = ["Blockchain agrifood", "Blockchain food",
+search_terms = ["Blockchain", "Blockchain agrifood", "Blockchain food",
                 "Blockchain beverage", "Blockchain agriculture", "Smart Contracts agrifood",
                 "Smart Contracts food", "Smart Contracts beverage", "Smart Contracts agriculture",
                 "Blockchain 4.0", "Blockchain industry 4.0"]
@@ -35,7 +39,7 @@ def agrifoodsearch():
         c.Min_likes = 5
         c.Store_object_tweets_list = tweetsFull
         c.Since = "2021-01-01 00:00:00"
-        c.Limit = 20  # 20 default value, 3200 max value
+        c.Limit = 3000  # 20 default value, 3200 max value
         c.Lang = "en"
         twint.run.Search(c)
 
@@ -45,12 +49,12 @@ agrifoodsearch()
 # DATA COLLECTION AND CLEAN
 token = WordPunctTokenizer()
 
-
 # Remove any special characters, link/url, hashtag, words less than 2 letters, convert all in lowercase
 # lemmatization, remove stopwords
 stop_words = set(stopwords.words('english'))
 stop_words.update(["blockchain", "eth", "bnb", "btc", "food", "int", "one", "xdc"])
 lemmatizer = WordNetLemmatizer()
+
 
 def cleaning_tweets(t):
     pattern_mentions = '@[A-Za-z0–9_]+'
@@ -76,6 +80,7 @@ def cleaning_tweets(t):
         if final not in stop_words:
             result_after_stopwords.append(final)
     return (" ".join(result_after_stopwords)).strip()
+
 
 # Take only hashtags, remove words less than 2 letters, convert all in lowercase, lemmatization, remove stopwords
 def get_hashtag(t):
@@ -160,3 +165,48 @@ plt.xlabel('Count of Hashtag', fontsize=12)
 plt.show()
 
 # df.to_excel("C:\\Users\\gianl\\Downloads\\Twitter.xlsx")
+
+words_lda = []
+for word_lda in tweets_text:
+    words_lda.append(token.tokenize(word_lda))
+
+# The two main inputs to the LDA topic model are the dictionary(id2word) and the corpus.
+
+# Create Dictionary
+id2word = corpora.Dictionary(words_lda)
+
+# Create Corpus
+texts = words_lda
+
+# Term Document Frequency
+corpus = [id2word.doc2bow(text) for text in texts]
+
+# View, (0,1) means that word id=0 occurs 1 time in the document, (1,3) means that word id=1 occurs 3 times in the
+# document
+print(corpus[:1])
+
+# Build LDA model
+# Alpha is an hyperparameter that affects sparsity of the topics.
+# chunksize is the number of documents to be used in each training chunk.
+# update_every determines how often the model parameters should be updated
+# and passes is the total number of training passes.
+lda_model = gensim.models.ldamodel.LdaModel(corpus=corpus,
+                                            id2word=id2word,
+                                            num_topics=20,
+                                            random_state=100,
+                                            update_every=1,
+                                            chunksize=100,
+                                            passes=10,
+                                            alpha='auto',
+                                            per_word_topics=True)
+
+# Print the Keyword in the 20 topics
+print(lda_model.print_topics())
+
+# Compute Perplexity
+print('\nPerplexity: ', lda_model.log_perplexity(corpus))  # a measure of how good the model is. lower the better.
+
+
+# Visualize the topics
+visualisation = pyLDAvis.gensim_models.prepare(lda_model, corpus, id2word, mds='mmds')
+pyLDAvis.save_html(visualisation, 'LDA_Visualization.html')
