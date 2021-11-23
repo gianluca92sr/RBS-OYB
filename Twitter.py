@@ -23,7 +23,7 @@ nest_asyncio.apply()
 # Allow: /hashtag/*?src=
 # Allow: /search?q=%23
 # Allow: /i/api/
-search_terms = ["Blockchain", "Blockchain agrifood", "Blockchain food",
+search_terms = ["agrifood", "agriculture" "Blockchain agrifood", "Blockchain food",
                 "Blockchain beverage", "Blockchain agriculture", "Smart Contracts agrifood",
                 "Smart Contracts food", "Smart Contracts beverage", "Smart Contracts agriculture",
                 "Blockchain 4.0", "Blockchain industry 4.0"]
@@ -36,10 +36,10 @@ def agrifoodsearch():
     for j in range(len(search_terms)):
         c.Search = search_terms[j]
         c.Store_object = True
-        c.Min_likes = 5
+        c.Min_likes = 0
         c.Store_object_tweets_list = tweetsFull
         c.Since = "2021-01-01 00:00:00"
-        c.Limit = 3000  # 20 default value, 3200 max value
+        c.Limit = 10000  # 20 default value, 3200 max value
         c.Lang = "en"
         twint.run.Search(c)
 
@@ -52,7 +52,7 @@ token = WordPunctTokenizer()
 # Remove any special characters, link/url, hashtag, words less than 2 letters, convert all in lowercase
 # lemmatization, remove stopwords
 stop_words = set(stopwords.words('english'))
-stop_words.update(["blockchain", "eth", "bnb", "btc", "food", "int", "one", "xdc"])
+stop_words.update(["blockchain", "eth", "bnb", "btc", "food", "int", "one", "xdc", "industry", "agrifood"])
 lemmatizer = WordNetLemmatizer()
 
 
@@ -192,7 +192,7 @@ print(corpus[:1])
 # and passes is the total number of training passes.
 lda_model = gensim.models.ldamodel.LdaModel(corpus=corpus,
                                             id2word=id2word,
-                                            num_topics=20,
+                                            num_topics=10,
                                             random_state=100,
                                             update_every=1,
                                             chunksize=100,
@@ -208,5 +208,9 @@ print('\nPerplexity: ', lda_model.log_perplexity(corpus))  # a measure of how go
 
 
 # Visualize the topics
+# Red bars represent the frequency of a word in the specific topic (FWS).
+# Gray bars represent the frequency of a word in all topics (FWA).
+# Lowering Lambda value adds more weight to the ratio FWS / FWA. Doing this allow us to see more clearly
+# the more valuable words for that specific topic and characterize that topic
 visualisation = pyLDAvis.gensim_models.prepare(lda_model, corpus, id2word, mds='mmds')
 pyLDAvis.save_html(visualisation, 'LDA_Visualization.html')
