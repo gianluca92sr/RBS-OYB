@@ -1,7 +1,6 @@
 import re
 import matplotlib.pyplot as plt
 import nest_asyncio
-import nltk
 import pandas as pd
 import seaborn as sns
 import twint
@@ -11,7 +10,7 @@ import gensim.corpora as corpora
 from gensim.models import CoherenceModel
 from bs4 import BeautifulSoup
 from nltk import WordPunctTokenizer
-from nltk.corpus import stopwords
+from gensim.parsing.preprocessing import STOPWORDS
 from nltk.stem import WordNetLemmatizer
 from wordcloud import WordCloud
 
@@ -23,10 +22,10 @@ nest_asyncio.apply()
 # Allow: /hashtag/*?src=
 # Allow: /search?q=%23
 # Allow: /i/api/
-search_terms = ["agrifood", "agriculture" "Blockchain agrifood", "Blockchain food",
-                "Blockchain beverage", "Blockchain agriculture", "Smart Contracts agrifood",
-                "Smart Contracts food", "Smart Contracts beverage", "Smart Contracts agriculture",
-                "Blockchain 4.0", "Blockchain industry 4.0"]
+search_terms = ["agriculture", "agrifood" "blockchain agrifood", "blockchain food",
+                "blockchain beverage", "blockchain agriculture", "smart contracts agrifood",
+                "smart contracts food", "smart contracts beverage", "smart contracts agriculture",
+                "blockchain 4.0", "blockchain industry 4.0"]
 
 tweetsFull = []
 
@@ -36,10 +35,10 @@ def agrifoodsearch():
     for j in range(len(search_terms)):
         c.Search = search_terms[j]
         c.Store_object = True
-        c.Min_likes = 0
+        c.Min_likes = 5
         c.Store_object_tweets_list = tweetsFull
         c.Since = "2021-01-01 00:00:00"
-        c.Limit = 10000  # 20 default value, 3200 max value
+        c.Limit = 3200  # 20 default value, 3200 max value
         c.Lang = "en"
         twint.run.Search(c)
 
@@ -51,8 +50,8 @@ token = WordPunctTokenizer()
 
 # Remove any special characters, link/url, hashtag, words less than 2 letters, convert all in lowercase
 # lemmatization, remove stopwords
-stop_words = set(stopwords.words('english'))
-stop_words.update(["blockchain", "eth", "bnb", "btc", "food", "int", "one", "xdc", "industry", "agrifood"])
+my_stop_words = STOPWORDS.union(
+    set(["blockchain", "eth", "bnb", "btc", "food", "int", "one", "xdc", "industry", "agrifood", "agriculture"]))
 lemmatizer = WordNetLemmatizer()
 
 
@@ -77,8 +76,9 @@ def cleaning_tweets(t):
     result_lemmas = [x for x in lemmas if len(x) > 2]
     result_after_stopwords = []
     for final in result_lemmas:
-        if final not in stop_words:
-            result_after_stopwords.append(final)
+        if final not in my_stop_words:
+            if not final.isnumeric():
+                result_after_stopwords.append(final)
     return (" ".join(result_after_stopwords)).strip()
 
 
@@ -92,8 +92,9 @@ def get_hashtag(t):
     result_lemmas = [x for x in lemmas if len(x) > 2]
     result_after_stopwords = []
     for final in result_lemmas:
-        if final not in stop_words:
-            result_after_stopwords.append(final)
+        if final not in my_stop_words:
+            if not final.isnumeric():
+                result_after_stopwords.append(final)
     return result_after_stopwords
 
 
@@ -203,8 +204,13 @@ lda_model = gensim.models.ldamodel.LdaModel(corpus=corpus,
 # Print the Keyword in the 20 topics
 print(lda_model.print_topics())
 
-# Compute Perplexity
-print('\nPerplexity: ', lda_model.log_perplexity(corpus))  # a measure of how good the model is. lower the better.
+# Compute Coherence Score
+coherence_model_lda = CoherenceModel(model=lda_model, texts=texts, dictionary=id2word, coherence='u_mass')
+coherence_lda = coherence_model_lda.get_coherence()
+print('\nCoherence Score: ', coherence_lda)
+
+# Perplexity: Lower the better. Perplexity = exp(-1. * log-likelihood per word)
+print('\nPerplexity: ', lda_model.log_perplexity(corpus))
 
 
 # Visualize the topics
