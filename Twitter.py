@@ -38,7 +38,7 @@ def agrifoodsearch():
         c.Min_likes = 5
         c.Store_object_tweets_list = tweetsFull
         c.Since = "2021-01-01 00:00:00"
-        c.Limit = 3200  # 20 default value, 3200 max value
+        c.Limit = 20  # 20 default value, 3200 max value
         c.Lang = "en"
         twint.run.Search(c)
 
@@ -185,38 +185,91 @@ corpus = [id2word.doc2bow(text) for text in texts]
 # View, (0,1) means that word id=0 occurs 1 time in the document, (1,3) means that word id=1 occurs 3 times in the
 # document
 print(corpus[:1])
+choerence_values = []
+def choose_the_best_lda(x):
+    temp_model = gensim.models.ldamodel.LdaModel(corpus=corpus,
+                                    id2word=id2word,
+                                    num_topics=x,
+                                    random_state=100,
+                                    update_every=1,
+                                    chunksize=100,
+                                    passes=10,
+                                    alpha='auto',
+                                    eta='auto',
+                                    per_word_topics=True)
 
-# Build LDA model
-# Alpha is an hyperparameter that affects sparsity of the topics.
-# chunksize is the number of documents to be used in each training chunk.
-# update_every determines how often the model parameters should be updated
-# and passes is the total number of training passes.
-lda_model = gensim.models.ldamodel.LdaModel(corpus=corpus,
-                                            id2word=id2word,
-                                            num_topics=10,
-                                            random_state=100,
-                                            update_every=1,
-                                            chunksize=100,
-                                            passes=10,
-                                            alpha='auto',
-                                            per_word_topics=True)
-
-# Print the Keyword in the 20 topics
-print(lda_model.print_topics())
-
-# Compute Coherence Score
-coherence_model_lda = CoherenceModel(model=lda_model, texts=texts, dictionary=id2word, coherence='u_mass')
-coherence_lda = coherence_model_lda.get_coherence()
-print('\nCoherence Score: ', coherence_lda)
-
-# Perplexity: Lower the better. Perplexity = exp(-1. * log-likelihood per word)
-print('\nPerplexity: ', lda_model.log_perplexity(corpus))
+    return temp_model
 
 
-# Visualize the topics
-# Red bars represent the frequency of a word in the specific topic (FWS).
-# Gray bars represent the frequency of a word in all topics (FWA).
-# Lowering Lambda value adds more weight to the ratio FWS / FWA. Doing this allow us to see more clearly
-# the more valuable words for that specific topic and characterize that topic
-visualisation = pyLDAvis.gensim_models.prepare(lda_model, corpus, id2word, mds='mmds')
-pyLDAvis.save_html(visualisation, 'LDA_Visualization.html')
+perplexity = None
+number_of_topic_to_choose = None
+perplexity_value_series = []
+perplexity_index_series = []
+# Choose the best lda_model based on the number of topics between 5 and 20. At the first iteration the base perplexity
+# is set, then it is checked against the temp_perplexity of the other number of topics and also we check
+# if this difference is over 10% of perplexity DECREASE (so we check with <) to avoid overfitting (V2−V1)/|V1|×100
+for i in range(5, 20):
+    temp_model = choose_the_best_lda(i)
+    temp_perplexity = temp_model.log_perplexity(corpus)
+    perplexity_value_series.append(temp_perplexity)
+    perplexity_index_series.append(i)
+    # u_mass approach measures how much a common word appearing within a topic is a good predictor for a less common word in the topic.
+    choerence_values.append(CoherenceModel(model=temp_model, dictionary=id2word, corpus=corpus, coherence='u_mass')
+                            .get_coherence())
+    if(i == 5):
+        perplexity = temp_perplexity
+        number_of_topic_to_choose = i
+    else:
+        if(temp_perplexity < perplexity and ((temp_perplexity - perplexity)/abs(perplexity) * 100) < -10):
+            perplexity = temp_perplexity
+            number_of_topic_to_choose = i
+
+
+y = pd.Series(perplexity_value_series)
+x = pd.Series(perplexity_index_series)
+plt.ylabel("Perplexity")
+plt.xlabel("N° of Topics")
+plt.title("Perplexity / N° of Topics")
+p = plt.plot(x.values, y.values)
+
+x2 = pd.Series(choerence_values)
+plt.ylabel("Choerence")
+plt.xlabel("N° of Topics")
+plt.title("Choerence / N° of Topics")
+p2 = plt.plot(x2.index, x2.values)
+plt.show()
+# # Build LDA model
+# # Alpha is an hyperparameter that affects sparsity of the topics.
+# # chunksize is the number of documents to be used in each training chunk.
+# # update_every determines how often the model parameters should be updated
+# # and passes is the total number of training passes.
+# lda_model = gensim.models.ldamodel.LdaModel(corpus=corpus,
+#                                             id2word=id2word,
+#                                             num_topics=10,
+#                                             random_state=100,
+#                                             update_every=1,
+#                                             chunksize=100,
+#                                             passes=10,
+#                                             alpha='auto',
+#                                             per_word_topics=True)
+#
+# # Print the Keyword in the 20 topics
+# print(lda_model.print_topics())
+#
+# # Compute Coherence Score
+# coherence_model_lda = CoherenceModel(model=lda_model, texts=texts, dictionary=id2word, coherence='u_mass')
+# coherence_lda = coherence_model_lda.get_coherence()
+# print('\nCoherence Score: ', coherence_lda)
+#
+# # Perplexity: Lower the better. Perplexity = exp(-1. * log-likelihood per word)
+# print('\nPerplexity: ', lda_model.log_perplexity(corpus))
+#
+#
+# # Visualize the topics
+# # Red bars represent the frequency of a word in the specific topic (FWS).
+# # Gray bars represent the frequency of a word in all topics (FWA).
+# # Lowering Lambda value adds more weight to the ratio FWS / FWA. Doing this allow us to see more clearly
+# # the more valuable words for that specific topic and characterize that topic
+# visualisation = pyLDAvis.gensim_models.prepare(lda_model, corpus, id2word, mds='mmds')
+# pyLDAvis.save_html(visualisation, 'LDA_Visualization.html')
+x= []
