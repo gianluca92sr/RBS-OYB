@@ -19,19 +19,37 @@ from wordcloud import WordCloud
 def main():
     nest_asyncio.apply()
 
+    tweetsFull = []
+
     # DATA COLLECTION AND EXPLORATION
     # DATA SCRAPING LEGAL BASED ON 2021 robots.txt FROM TWITTER
     # Allow: /*?lang=
     # Allow: /hashtag/*?src=
     # Allow: /search?q=%23
     # Allow: /i/api/
-    search_terms = ["blockchain agrifood", "blockchain food",
-                    "blockchain beverage", "blockchain agriculture", "smart contracts agrifood",
-                    "smart contracts food", "smart contracts beverage", "smart contracts agriculture"]
 
-    tweetsFull = []
+    # AGRIFOOD KEYWORDS
+    # search_terms = ["blockchain agrifood", "blockchain food",
+    #                 "blockchain beverage", "blockchain agriculture", "smart contracts agrifood",
+    #                 "smart contracts food", "smart contracts beverage", "smart contracts agriculture"]
 
-    def agrifoodsearch():
+    # ENERGY + UTILITIES KEYWORDS
+    # search_terms = ["blockchain energy", "blockchain utility",
+    #                 "smart contracts energy", "smart contracts utility"]
+
+    # IOT KEYWORDS
+    # search_terms = ["blockchain iot", "blockchain internet of things",
+    #                 "blockchain industry 4.0", "smart contracts iot",
+    #                 "smart contracts internet of things", "smart contracts industry 4.0"]
+
+    # HEALTHCARE KEYWORDS
+    search_terms = ["blockchain healthcare", "blockchain medical",
+                    "blockchain health management", "blockchain medical management", "blockchain pharma",
+                    "blockchain clinic", "blockchain patient", "smart contracts healthcare"]
+
+
+
+    def tweetsSearch():
         c = twint.Config()
         for j in range(len(search_terms)):
             c.Search = search_terms[j]
@@ -39,11 +57,13 @@ def main():
             # c.Min_likes = 5
             c.Store_object_tweets_list = tweetsFull
             c.Since = "2020-01-01"
-            c.Limit = 1000  # 20 default value, 3200 max value
+            c.Limit = 1000000  # 20 default value, 3200 max value
             c.Lang = "en"
+            c.Debug = True
             twint.run.Search(c)
 
-    agrifoodsearch()
+    # low tweets retrieve problem solved decommented ('query_source', 'typed_query') in url.py
+    tweetsSearch()
 
     print(len(tweetsFull))
 
@@ -54,7 +74,8 @@ def main():
     # lemmatization, remove stopwords
     my_stop_words = STOPWORDS.union(
         set(["blockchain", "food", "int", "one", "xdc", "industry", "agrifood", "agriculture",
-             "technology", "smart", "contract", "agricultural", "case", "tech", "agri", "like", "chain"]))
+             "technology", "smart", "contract", "agricultural", "case", "tech", "agri", "like", "chain",
+             "medical", "patient", "healthcare", "pharma", "management"]))
     lemmatizer = WordNetLemmatizer()
 
     def cleaning_tweets(t):
@@ -259,8 +280,8 @@ def main():
 
     def choose_the_best_mallet_lda(x):
         temp_model_mallet = gensim.models.wrappers.LdaMallet(mallet_path, corpus=corpus,
-                                                        num_topics=x,
-                                                        id2word=id2word)
+                                                             num_topics=x,
+                                                             id2word=id2word)
 
         return temp_model_mallet
 
@@ -275,7 +296,7 @@ def main():
         temp_model_mallet = choose_the_best_mallet_lda(i)
         # c_v from 0 to 1, the latter is better
         temp_coherence_mallet = CoherenceModel(model=temp_model_mallet, texts=texts, dictionary=id2word,
-                                        coherence='c_v').get_coherence()
+                                               coherence='c_v').get_coherence()
         coherence_values_mallet.append(temp_coherence_mallet)
         coherence_index_mallet.append(i)
 
@@ -302,7 +323,6 @@ def main():
     mallet_lda_model = gensim.models.wrappers.ldamallet.malletmodel2ldamodel(lda_model_mallet)
     visualisationMallet = pyLDAvis.gensim_models.prepare(mallet_lda_model, corpus, id2word, mds='mmds')
     pyLDAvis.save_html(visualisationMallet, 'LDA_Mallet_Visualization.html')
-
 
 
 if __name__ == "__main__":
